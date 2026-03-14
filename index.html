@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Driving Sim</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    canvas { display: block; }
+
+    #hud {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; font-family: 'Courier New', monospace; color: #fff;
+    }
+
+    #speed-display {
+      position: absolute; bottom: 30px; right: 30px;
+      font-size: 48px; font-weight: bold; text-shadow: 0 0 10px rgba(0,0,0,0.8);
+    }
+    #speed-unit { font-size: 18px; opacity: 0.7; }
+
+    #gear-display {
+      position: absolute; bottom: 90px; right: 40px;
+      font-size: 32px; font-weight: bold; text-shadow: 0 0 10px rgba(0,0,0,0.8);
+    }
+
+    #rpm-bar-container {
+      position: absolute; bottom: 20px; right: 160px; width: 200px; height: 14px;
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.3); border-radius: 3px;
+    }
+    #rpm-bar {
+      height: 100%; width: 0%; border-radius: 2px;
+      transition: background-color 0.1s;
+    }
+
+    #suspension-indicators {
+      position: absolute; bottom: 30px; left: 30px; display: flex; gap: 20px;
+    }
+    .wheel-indicator {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+    }
+    .wheel-label { font-size: 10px; opacity: 0.7; }
+    .susp-bar-container {
+      width: 12px; height: 60px; background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.3); border-radius: 2px;
+      position: relative; overflow: hidden;
+    }
+    .susp-bar {
+      position: absolute; bottom: 0; width: 100%; border-radius: 1px;
+      transition: height 0.05s, background-color 0.1s;
+    }
+    .slip-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.3);
+    }
+
+    #gforce-container {
+      position: absolute; bottom: 30px; left: 200px;
+      width: 80px; height: 80px; background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.3); border-radius: 50%;
+      overflow: hidden;
+    }
+    #gforce-dot {
+      position: absolute; width: 8px; height: 8px; border-radius: 50%;
+      background: #0f0; transform: translate(-50%, -50%);
+      top: 50%; left: 50%;
+    }
+    #gforce-crosshair-h, #gforce-crosshair-v {
+      position: absolute; background: rgba(255,255,255,0.15);
+    }
+    #gforce-crosshair-h { width: 100%; height: 1px; top: 50%; }
+    #gforce-crosshair-v { height: 100%; width: 1px; left: 50%; }
+
+    #debug-panel {
+      position: absolute; top: 10px; right: 10px; width: 280px;
+      background: rgba(0,0,0,0.85); border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px; padding: 12px; font-size: 11px;
+      pointer-events: all; display: none; max-height: 90vh; overflow-y: auto;
+    }
+    #debug-panel.visible { display: block; }
+    .debug-section { margin-bottom: 10px; }
+    .debug-section-title { font-weight: bold; margin-bottom: 6px; color: #8cf; font-size: 12px; }
+    .debug-row { display: flex; align-items: center; margin-bottom: 3px; }
+    .debug-row label { flex: 1; font-size: 10px; }
+    .debug-row input[type="range"] { width: 100px; }
+    .debug-row .debug-val { width: 50px; text-align: right; font-size: 10px; color: #aaa; }
+
+    #controls-help {
+      position: absolute; top: 10px; left: 10px; font-size: 11px;
+      opacity: 0.5; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div id="speed-display">0 <span id="speed-unit">km/h</span></div>
+    <div id="gear-display">N</div>
+    <div id="rpm-bar-container"><div id="rpm-bar"></div></div>
+
+    <div id="suspension-indicators">
+      <div class="wheel-indicator">
+        <div class="wheel-label">FL</div>
+        <div class="susp-bar-container"><div class="susp-bar" id="susp-fl"></div></div>
+        <div class="slip-dot" id="slip-fl"></div>
+      </div>
+      <div class="wheel-indicator">
+        <div class="wheel-label">FR</div>
+        <div class="susp-bar-container"><div class="susp-bar" id="susp-fr"></div></div>
+        <div class="slip-dot" id="slip-fr"></div>
+      </div>
+      <div class="wheel-indicator">
+        <div class="wheel-label">RL</div>
+        <div class="susp-bar-container"><div class="susp-bar" id="susp-rl"></div></div>
+        <div class="slip-dot" id="slip-rl"></div>
+      </div>
+      <div class="wheel-indicator">
+        <div class="wheel-label">RR</div>
+        <div class="susp-bar-container"><div class="susp-bar" id="susp-rr"></div></div>
+        <div class="slip-dot" id="slip-rr"></div>
+      </div>
+    </div>
+
+    <div id="gforce-container">
+      <div id="gforce-crosshair-h"></div>
+      <div id="gforce-crosshair-v"></div>
+      <div id="gforce-dot"></div>
+    </div>
+
+    <div id="controls-help">
+      WASD - Drive | SPACE - Handbrake<br>
+      C - Camera | R - Reset | TAB - Tuning
+    </div>
+
+    <div id="debug-panel"></div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
